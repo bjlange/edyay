@@ -8,7 +8,7 @@ setuptools.setup(
     version="0.0.1",
     author="Brian Lange",
     author_email="blange@ideo.com",
-    description="EDYay are my scripts and modules for making EDA more easy, collaborative, and fun.",
+    description="EDYay is a package of scripts and modules for making EDA more easy, collaborative, and fun.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/sampleproject",
