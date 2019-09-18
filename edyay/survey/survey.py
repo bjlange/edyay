@@ -3,9 +3,14 @@ import csv
 import logging
 from pathlib import Path
 from collections import defaultdict
+import unicodedata
 
 import pandas as pd
+import matplotlib.pyplot as plt
 import yaml
+
+def str_normalize(input_str):
+    return unicodedata.normalize('NFKD', input_str).strip()
 
 class Survey:
     def create_alias_file(self, filename_override, reset=False):
@@ -74,14 +79,15 @@ class Survey:
         
         # TODO: check that exclusion keys are valid columns
 
-        for key, exclusion in new_exclusions.items():
-            # de-alias any aliased exclusion keys
-            if key in self.alias2full.keys():
-                key = self.alias2full[key]
+        if new_exclusions:
+            for key, exclusion in new_exclusions.items():
+                # de-alias any aliased exclusion keys
+                if key in self.alias2full.keys():
+                    key = self.alias2full[key]
 
-            # TODO: check for proper structure in exclusion file
+                # TODO: check for proper structure in exclusion file
 
-            self.exclusions[key] = set(exclusion)
+                self.exclusions[key] = set(exclusion)
         
         exclusion_mask = pd.Series([False] * len(self.data_df.index), index=self.data_df.index)
         for col, excluded_values in self.exclusions.items():
@@ -122,16 +128,25 @@ class SurveyMonkeySurvey(Survey):
 
         header_labels = []
         multiselect_questions = set()
+        already_used_h1s = set()
 
         for h1, h2 in zip(header1, header2):
+            h1 = str_normalize(h1)
+            h2 = str_normalize(h2)
             if h1:
+                if h1 in already_used_h1s:
+                    # TODO: make a better unique-ifier
+                    h1 = h1 + 'i'
                 last_nonempty_h1 = h1
+                already_used_h1s.add(h1)
             else:
                 multiselect_questions.add(last_nonempty_h1)
-            header_labels.append((last_nonempty_h1, h2))
+            q_tuple = (last_nonempty_h1, h2)
+            header_labels.append(q_tuple)
             
         self.multiselect_questions = multiselect_questions
-            
+        
+        
         data = pd.DataFrame(response_rows)
         data.columns = pd.MultiIndex.from_tuples(header_labels)
         data['Start Date'] = pd.to_datetime(data['Start Date'])
@@ -141,6 +156,54 @@ class SurveyMonkeySurvey(Survey):
         data['Elapsed'] = data['End Date'] - data['Start Date']
         self.data_df = data
         
+    def plot_question(self, question_str, title=None, **kwargs):
+        """Call with a question or question alias string, get a df and matplotlib figure back"""
+        if question_str in self.alias2full:
+            question_str = self.alias2full[question_str]
+        
+        sub_df = self.data_df[question_str]
+        if question_str in self.multiselect_questions:
+            not_empty = (~(sub_df == '') & (sub_df.notnull()))
+            plot_df = not_empty.astype(int).sum()
+        elif isinstance(sub_df, pd.DataFrame):
+            if 'Response' in sub_df.columns:
+                plot_df = sub_df[~(sub_df.Response == '') & (sub_df.Response.notnull())].Response.value_counts()
+
+            if 'Open-Ended Response' in sub_df.columns:
+                sub_df = sub_df['Open-Ended Response']
+                plot_df = sub_df[~(sub_df == '') & (sub_df.notnull())]
+                return f'## {question_str}\n * ' + '\n * '.join(plot_df.values)
+
+        else:
+            raise NotImplementedError()
+        
+        plt.figure()
+        plot_df.plot(kind='barh', **kwargs)
+        if not title:
+            plt.title(question_str)
+        fig = plt.gcf()
+
+        return plot_df, fig
+
+    def export_all_plots(self, path):
+        questions = set([q for q, _ in self.data_df.columns])
+        for question in questions:
+            logging.info(f'plotting {question}({self.full2alias[question]})')
+            try:
+                result = self.plot_question(question)
+                if isinstance(result, str):
+                    # string responses
+                    with open(f'{path}{self.full2alias[question]}.md', 'w') as outfile:
+                        outfile.write(result)
+                else:
+                    df, fig = result
+                    fig.savefig(f"{path}{self.full2alias[question]}.png", dpi=300, bbox_inches='tight')
+            except NotImplementedError:
+                # TODO: rankings
+                logging.warning(f'Unable to make a plot for {question}')
+            
+           
+
     def __init__(self, filename, 
                  alias_filename=False,
                  reset_aliases=False,
@@ -159,3 +222,6 @@ class SurveyMonkeySurvey(Survey):
             
         self.create_alias_file(alias_filename, reset_aliases)
         self.create_exclude_file(exclude_filename)
+
+if __name__ == '__main__':
+    sms = SurveyMonkeySurvey("/Users/blange/projects/outpost/rentals/balance_quant.csv")
