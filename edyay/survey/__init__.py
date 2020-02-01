@@ -1,1 +1,1 @@
-from .survey import Survey, SurveyMonkeySurvey
+from .survey import Survey, SurveyMonkeySurvey, QualtricsSurvey

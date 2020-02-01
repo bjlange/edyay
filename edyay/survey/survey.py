@@ -223,5 +223,64 @@ class SurveyMonkeySurvey(Survey):
         self.create_alias_file(alias_filename, reset_aliases)
         self.create_exclude_file(exclude_filename)
 
-if __name__ == '__main__':
+
+class QualtricsSurvey(Survey):
+    def load_data_from_file(self, filename):
+        with open(filename) as infile:
+            reader = csv.reader(infile)
+            header1 = next(reader)
+            header2 = next(reader)
+            response_rows = [row for row in reader]
+
+        header_labels = []
+
+        def str_normalize(input_str):
+            return unicodedata.normalize("NFKD", input_str).strip()
+
+        for h1, h2 in zip(header1, header2):
+            h1 = str_normalize(h1)
+            h2 = str_normalize(h2)
+            # TODO: handle the format with multiple columns per multiselect (see SurveyMonkeySurvey for how we did that there)
+            q_tuple = (h1, h2)
+            header_labels.append(q_tuple)
+
+        data = pd.DataFrame(response_rows)
+        data.columns = pd.MultiIndex.from_tuples(header_labels)
+
+        data.loc[:, ("startDate", "Start Date")] = pd.to_datetime(
+            data["startDate"]["Start Date"]
+        )
+        data.loc[:, ("endDate", "End Date")] = pd.to_datetime(
+            data["endDate"]["End Date"]
+        )
+
+        # create an elapsed time calculated column
+        data["Elapsed"] = data["endDate"]["End Date"] - data["startDate"]["Start Date"]
+        self.data_df = data
+
+    def __init__(
+        self,
+        filename,
+        alias_filename=False,
+        reset_aliases=False,
+        exclude_filename=False,
+        drop_empty_cols=True,
+    ):
+        self.filename = filename
+        self.load_data_from_file(filename)
+
+        # drop empty columns + alert that they're being dropped
+        if drop_empty_cols:
+            has_data = (self.data_df == "").astype(int).sum() != len(self.data_df)
+            for idx, val in has_data.iteritems():
+                if not val:
+                    logging.warning(f"Column {idx} has no data, dropping...")
+            self.data_df = self.data_df.loc[:, has_data]
+
+        ## TODO: change the alias file to use the Qualtrics 2-layer header for IDs
+        self.create_alias_file(alias_filename, reset_aliases)
+        self.create_exclude_file(exclude_filename)
+
+
+if __name__ == "__main__":
     sms = SurveyMonkeySurvey("/Users/blange/projects/outpost/rentals/balance_quant.csv")
