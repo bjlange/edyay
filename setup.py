@@ -14,8 +14,16 @@ setuptools.setup(
     url="https://github.com/pypa/sampleproject",
     packages=setuptools.find_packages(),
     install_requires=[
-        'pandas==0.24.0',
-        'PyYAML>=5.1.1'
+        'numpy==1.18.1',
+        'pandas==1.0.0',
+        'python-dateutil==2.8.1',
+        'pytz==2019.3',
+        'six==1.14.0',
+        'PyYAML>=5.1.1',
+        'cycler>=0.10',
+        'pyparsing!=2.0.4,!=2.1.2,!=2.1.6,>=2.0.1',
+        'kiwisolver>=1.0.1',
+        'matplotlib==3.1.2'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
