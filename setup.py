@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/pypa/sampleproject",
     packages=setuptools.find_packages(),
     install_requires=[
-        'numpy==1.18.1',
+        'numpy==1.22.0',
         'pandas==1.0.0',
         'python-dateutil==2.8.1',
         'pytz==2019.3',
